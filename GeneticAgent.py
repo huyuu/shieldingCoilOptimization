@@ -164,7 +164,7 @@ class GeneticAgent():
     def __init__(self):
         self.generation = []
         self.survivalPerGeneration = 20
-        self.descendantsPerLife = 5
+        self.descendantsPerLife = 8
         # init generation
         coil = Coil()
         for _ in range(self.survivalPerGeneration):
@@ -179,7 +179,8 @@ class GeneticAgent():
         for count in range(loopAmount):
             _start = dt.datetime.now()
             # calculate loss function for this generation and store in self.generationQueue
-            with mp.Pool(processes=mp.cpu_count()-1) as pool:
+            # https://github.com/psf/black/issues/564
+            with mp.Pool(processes=min(mp.cpu_count()-1, 60)) as pool:
                 self.generation = pool.map(lossFunction, self.generation)
             print('loss function calculated.')
             # boom next generation
@@ -197,14 +198,16 @@ class GeneticAgent():
             minLoss.append(survived[0].loss)
             loopCount.append(count+1)
             fig = pl.figure()
-            pl.title('Training Result', fontsize=24)
-            pl.xlabel('loop count', fontsize=22)
-            pl.ylabel('min loss', fontsize=22)
+            pl.title('Training Result', fontsize=22)
+            pl.xlabel('loop count', fontsize=18)
+            pl.ylabel('min loss', fontsize=18)
             pl.yscale('log')
             pl.plot(loopCount, minLoss)
-            pl.tick_params(labelsize=16)
+            pl.tick_params(labelsize=12)
             fig.savefig('trainingResult.png')
             pl.close(fig)
+            # save coil, https://deepage.net/features/numpy-loadsave.html
+            nu.save('bestCoil.npy', survived[0].distribution)
 
 
 # Main
@@ -218,5 +221,6 @@ R2 = 1e-7
 
 
 if __name__ == '__main__':
+    mp.freeze_support()
     agent = GeneticAgent()
     agent.run()
