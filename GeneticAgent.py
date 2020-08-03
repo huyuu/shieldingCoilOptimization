@@ -98,7 +98,7 @@ class Coil():
             'columnAmount': self.columnAmount,
             'rowAmount': self.rowAmount,
             'distribution': self.distribution.tolist(),
-            'distributionInRealCoordinates': self.distributionInRealCoordinates.tolist(),
+            'distributionInRealCoordinates': self.distributionInRealCoordinates,
             'loss': self.loss
         }
 
@@ -111,7 +111,7 @@ class Coil():
         self.columnAmount = state['columnAmount']
         self.rowAmount = state['rowAmount']
         self.distribution = nu.array(state['distribution'])
-        self.distributionInRealCoordinates = nu.array(state['distributionInRealCoordinates'])
+        self.distributionInRealCoordinates = state['distributionInRealCoordinates']
         self.loss = state['loss']
 
 
@@ -197,7 +197,8 @@ class GeneticAgent():
         self.descendantsPerLife = 8
         # init generation
         if os.path.exists('lastGeneration.pickle'):
-            self.generation = pickle.load('lastGeneration.pickle')
+            with open('lastGeneration.pickle', 'rb') as file:
+                self.generation = pickle.load(file)
         else:
             coil = Coil()
             for _ in range(self.survivalPerGeneration):
@@ -247,7 +248,8 @@ class GeneticAgent():
             fig.savefig('trainingResult.png')
             pl.close(fig)
             # save coil
-            pickle.dump(survived, 'lastGeneration.pickle')
+            with open('lastGeneration.pickle', 'wb') as file:
+                pickle.dump(survived, file)
             # https://deepage.net/features/numpy-loadsave.html
             # nu.save('lastGeneration.npy', survived[0].distribution)
             nu.save('minLosses.npy', nu.array(minLosses))
