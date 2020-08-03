@@ -165,7 +165,7 @@ class Coil():
 
 class GeneticAgent():
     def __init__(self):
-        self.generationQueue = mp.Queue()
+        self.generationQueue = mp.JoinableQueue()
         self.survivalPerGeneration = 10
         self.descendantsPerLife = 10
         # init generation
@@ -188,13 +188,13 @@ class GeneticAgent():
             print('(time cost: {:.3g}[min])'.format((_end-_start).total_seconds()/60))
 
 
-
     def __calculateLossFunctionInCurrentGeneration(self):
         processTank = []
         generation = []
         # get generation individuals
         while not self.generationQueue.empty():
             generation.append(self.generationQueue.get())
+            self.generationQueue.task_done()
         # calculate loss
         print(f'start cal. loss of {len(generation)} coils.')
         for life in generation:
@@ -207,12 +207,13 @@ class GeneticAgent():
             process.join()
 
 
-
     def __breedNextGeneration(self):
         # get survived
         generation = []
         while not self.generationQueue.empty():
-            generation.append(self.generationQueue.get_nowait())
+            generation.append(self.generationQueue.get())
+            self.generationQueue.task_done()
+        # self.generationQueue.join()
         print([ coil.loss for coil in generation ])
         survived = sorted(generation, key=lambda coil: coil.loss)[:self.survivalPerGeneration]
         # boom the next generation
@@ -223,7 +224,7 @@ class GeneticAgent():
             generation.extend(descendants)
         # write to the next generationQueue
         for life in generation:
-            self.generationQueue.put(life, timeout=5)
+            self.generationQueue.put(life)
         # print error
         print(f'{len(generation)} individuals put.')
         print('loss: {:.4g}'.format(survived[0].loss), end=' ')
