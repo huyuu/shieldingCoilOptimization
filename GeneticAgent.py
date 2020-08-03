@@ -179,9 +179,10 @@ class GeneticAgent():
     # http://ja.pymotw.com/2/multiprocessing/communication.html
     # https://qiita.com/uesseu/items/791d918c5a076a5b7265#ネットワーク越しの並列化
     def run(self, loopAmount=100):
-        minLoss = []
-        loopCount = []
-        for count in range(loopAmount):
+        minLosses = []
+        if os.path.exists('minLosses.npy'):
+            minLosses = nu.load('minLosses.npy').tolist()
+        for _ in range(loopAmount):
             _start = dt.datetime.now()
             # calculate loss function for this generation and store in self.generationQueue
             # https://github.com/psf/black/issues/564
@@ -200,19 +201,19 @@ class GeneticAgent():
             _end = dt.datetime.now()
             print('minLoss: {:.4g} (time cost: {:.3g}[min])'.format(survived[0].loss, (_end-_start).total_seconds()/60))
             # plot
-            minLoss.append(survived[0].loss)
-            loopCount.append(count+1)
+            minLosses.append(survived[0].loss)
             fig = pl.figure()
             pl.title('Training Result', fontsize=22)
             pl.xlabel('loop count', fontsize=18)
             pl.ylabel('min loss', fontsize=18)
             pl.yscale('log')
-            pl.plot(loopCount, minLoss)
+            pl.plot(minLoss)
             pl.tick_params(labelsize=12)
             fig.savefig('trainingResult.png')
             pl.close(fig)
             # save coil, https://deepage.net/features/numpy-loadsave.html
             nu.save('bestCoil.npy', survived[0].distribution)
+            nu.save('minLosses.npy', nu.array(minLoss))
 
 
 # Main
