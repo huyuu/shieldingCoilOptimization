@@ -36,7 +36,7 @@ def calculateBzFromLoop(r, coilZPosition, I, x, y, z):
     return Cz(r, x, y, z, coilZPosition) * I
 
 
-def lossFunction(coil, queue, points=20):
+def lossFunction(coil, points=20):
     # get L2
     L2 = coil.calculateL()
     # get M
@@ -56,7 +56,8 @@ def lossFunction(coil, queue, points=20):
     assert loss >= 0
     # add to generationQueue
     coil.loss = loss
-    queue.put(coil)
+    return coil
+    # queue.put(coil)
 
 
 class Coil():
@@ -165,15 +166,16 @@ class Coil():
 
 class GeneticAgent():
     def __init__(self):
-        self.generationQueue = mp.JoinableQueue()
+        self.generation = []
         self.survivalPerGeneration = 10
         self.descendantsPerLife = 10
         # init generation
         coil = Coil()
         for _ in range(self.survivalPerGeneration):
-            self.generationQueue.put(coil)
+            self.generation.append(coil)
 
 
+    # http://ja.pymotw.com/2/multiprocessing/communication.html
     def run(self, loopAmount=100):
         for _ in range(loopAmount):
             _start = dt.datetime.now()
@@ -189,45 +191,60 @@ class GeneticAgent():
 
 
     def __calculateLossFunctionInCurrentGeneration(self):
-        processTank = []
-        generation = []
-        # get generation individuals
-        while not self.generationQueue.empty():
-            generation.append(self.generationQueue.get())
-            self.generationQueue.task_done()
-        # calculate loss
-        print(f'start cal. loss of {len(generation)} coils.')
-        for life in generation:
-            # lossFunction(life, self.generationQueue)
-            process = mp.Process(target=lossFunction, args=(life, self.generationQueue,))
-            process.start()
-            processTank.append(process)
-        # wait until finish
-        for process in processTank:
-            process.join()
+        print(f'start cal. loss of {len(self.generation)} coils.')
+        with mp.Pool() as pool:
+            self.generation = pool.map(lossFunction, self.generation)
+
+        # processTank = []
+        # generation = []
+        # # get generation individuals
+        # while not self.generationQueue.empty():
+        #     generation.append(self.generationQueue.get())
+        #     self.generationQueue.task_done()
+        # # calculate loss
+        # print(f'start cal. loss of {len(self.generation)} coils.')
+        # for life in generation:
+        #     # lossFunction(life, self.generationQueue)
+        #     process = mp.Process(target=lossFunction, args=(life, self.generationQueue,))
+        #     process.start()
+        #     processTank.append(process)
+        # # wait until finish
+        # for process in processTank:
+        #     process.join()
 
 
     def __breedNextGeneration(self):
-        # get survived
-        generation = []
-        while not self.generationQueue.empty():
-            generation.append(self.generationQueue.get())
-            self.generationQueue.task_done()
-        # self.generationQueue.join()
-        print([ coil.loss for coil in generation ])
-        survived = sorted(generation, key=lambda coil: coil.loss)[:self.survivalPerGeneration]
-        # boom the next generation
-        generation = []
+
+        survived = sorted(self.generation, key=lambda coil: coil.loss)[:self.survivalPerGeneration]
+        self.generation = []
         for life in survived:
             descendants = life.makeDescendants(amount=self.descendantsPerLife)
-            generation.append(life)
-            generation.extend(descendants)
-        # write to the next generationQueue
-        for life in generation:
-            self.generationQueue.put(life)
+            self.generation.append(life)
+            self.generation.extend(descendants)
         # print error
-        print(f'{len(generation)} individuals put.')
+        print(f'{len(self.generation)} individuals put.')
         print('loss: {:.4g}'.format(survived[0].loss), end=' ')
+
+        # # get survived
+        # generation = []
+        # while not self.generationQueue.empty():
+        #     generation.append(self.generationQueue.get())
+        #     self.generationQueue.task_done()
+        # # self.generationQueue.join()
+        # print([ coil.loss for coil in generation ])
+        # survived = sorted(generation, key=lambda coil: coil.loss)[:self.survivalPerGeneration]
+        # # boom the next generation
+        # generation = []
+        # for life in survived:
+        #     descendants = life.makeDescendants(amount=self.descendantsPerLife)
+        #     generation.append(life)
+        #     generation.extend(descendants)
+        # # write to the next generationQueue
+        # for life in generation:
+        #     self.generationQueue.put(life)
+        # # print error
+        # print(f'{len(generation)} individuals put.')
+        # print('loss: {:.4g}'.format(survived[0].loss), end=' ')
 
 
 # Main
