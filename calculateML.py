@@ -42,7 +42,7 @@ def MutalInductance(r1, r2, d):
     if result >= 0:
         return result
     else:
-        return 0.5 * mu0 * quadrature(_f, 0, 2*nu.pi, args=(r1, r2, d), tol=1e-6, maxiter=1000)[0]
+        return 0.5 * mu0 * quadrature(_f, 0, 2*nu.pi, args=(r1, r2, d), tol=1e-6, maxiter=3000)[0]
 
 
 def Mtotal(r1, l1, N1, r2, l2, N2):

@@ -37,6 +37,9 @@ def calculateBzFromLoop(r, coilZPosition, I, x, y, z):
 
 
 def lossFunction(coil, points=20):
+    # if loss already calculated, return
+    if coil.loss != None:
+        return coil
     # get L2
     L2 = coil.calculateL()
     # get M
@@ -82,12 +85,6 @@ class Coil():
         self.loss = None
 
 
-    # @property
-    # def distributionInRealCoordinates(self):
-    #     rs = nu.linspace(-self.Z0, self.Z0, self.columnAmount).reshape(1, -1) * self.distribution
-    #     zs = nu.linspace(self.minRadius, self.minRadius+self.rowAmount*self.scThickness, self.rowAmount).reshape(-1, 1) * self.distribution
-    #     indices = [ (r, z) for r, z in zip(rs.ravel(), zs.ravel()) ]
-    #     return indices
     def __calculateDistributionInRealCoordinates(self):
         rs = nu.linspace(-self.Z0, self.Z0, self.columnAmount).reshape(1, -1) * self.distribution
         zs = nu.linspace(self.minRadius, self.minRadius+self.rowAmount*self.scThickness, self.rowAmount).reshape(-1, 1) * self.distribution
@@ -99,9 +96,11 @@ class Coil():
     def makeDescendant(self, row, column, shouldIncrease):
         coil = Coil(baseCoil=self)
         if shouldIncrease:
-            coil.distribution[row-1, column] = 1
+            coil.distribution[row, column] = 1
+            coil.distribution[row, -1-column] = 1
         else:
             coil.distribution[row, column] = 0
+            coil.distribution[row, -1-column] = 0
         # print(coil.distribution[-2:, :])
         # print(' ')
         return coil
@@ -110,24 +109,33 @@ class Coil():
     def makeDescendants(self, amount):
         descendants = []
         count = 0
-        candidates = nu.random.permutation(self.columnAmount).tolist()
+        amount = amount // 2
+        candidates = []
+        # set candidates
+        if self.columnAmount % 2 == 1:#odd
+            candidates = nu.random.permutation((self.columnAmount+1)//2).tolist()
+        else:#even
+            candidates = nu.random.permutation(self.columnAmount//2).tolist()
         increasedColumns = set()
         # add increased descendants
-        while count <= amount//2 and len(candidates) > 0:
+        while count <= amount and len(candidates) > 0:
             chosenColumn = candidates.pop()
             rows = self.distribution[:, chosenColumn]
             if rows[0] == 1:# can't be increased
                 continue
             else:# can be increased
-                row = nu.where(rows==1)[0][0]
+                row = nu.where(rows==0)[0][-1]
                 descendants.append(self.makeDescendant(row=row, column=chosenColumn, shouldIncrease=True))
                 increasedColumns.add(chosenColumn)
                 count += 1
         # add decreased descendants
         count = 0
-        candidates = nu.random.permutation(list(set(nu.arange(self.columnAmount).tolist()) - increasedColumns)).tolist()
+        if self.columnAmount % 2 == 1:#odd
+            candidates = nu.random.permutation(list(set(nu.arange((self.columnAmount+1)//2).tolist()) - increasedColumns)).tolist()
+        else:#even
+            candidates = nu.random.permutation(list(set(nu.arange(self.columnAmount//2).tolist()) - increasedColumns)).tolist()
         decreasedColumns = set()
-        while count <= amount//2 and len(candidates) > 0:
+        while count <= amount and len(candidates) > 0:
             chosenColumn = candidates.pop()
             rows = self.distribution[:, chosenColumn]
             if rows[-1] == 0:# can't be decreased
@@ -139,18 +147,6 @@ class Coil():
                 count += 1
 
         return descendants
-
-
-    # def __lt__(self, other):
-    #     assert self.loss != None
-    #     assert other.loss != None
-    #     return self.loss < other.loss
-    #
-    #
-    # def __gt__(self, other):
-    #     assert self.loss != None
-    #     assert other.loss != None
-    #     return self.loss > other.loss
 
 
     def calculateL(self):
@@ -167,8 +163,8 @@ class Coil():
 class GeneticAgent():
     def __init__(self):
         self.generation = []
-        self.survivalPerGeneration = 10
-        self.descendantsPerLife = 10
+        self.survivalPerGeneration = 20
+        self.descendantsPerLife = 5
         # init generation
         coil = Coil()
         for _ in range(self.survivalPerGeneration):
@@ -176,75 +172,39 @@ class GeneticAgent():
 
 
     # http://ja.pymotw.com/2/multiprocessing/communication.html
+    # https://qiita.com/uesseu/items/791d918c5a076a5b7265#ネットワーク越しの並列化
     def run(self, loopAmount=100):
-        for _ in range(loopAmount):
+        minLoss = []
+        loopCount = []
+        for count in range(loopAmount):
             _start = dt.datetime.now()
             # calculate loss function for this generation and store in self.generationQueue
-            self.__calculateLossFunctionInCurrentGeneration()
+            with mp.Pool(processes=mp.cpu_count()-1) as pool:
+                self.generation = pool.map(lossFunction, self.generation)
             print('loss function calculated.')
             # boom next generation
-            self.__breedNextGeneration()
+            survived = sorted(self.generation, key=lambda coil: coil.loss)[:self.survivalPerGeneration]
+            self.generation = []
+            for life in survived:
+                descendants = life.makeDescendants(amount=self.descendantsPerLife)
+                self.generation.append(life)
+                self.generation.extend(descendants)
             print('next generation made.')
             # check if should end
             _end = dt.datetime.now()
-            print('(time cost: {:.3g}[min])'.format((_end-_start).total_seconds()/60))
-
-
-    def __calculateLossFunctionInCurrentGeneration(self):
-        print(f'start cal. loss of {len(self.generation)} coils.')
-        with mp.Pool() as pool:
-            self.generation = pool.map(lossFunction, self.generation)
-
-        # processTank = []
-        # generation = []
-        # # get generation individuals
-        # while not self.generationQueue.empty():
-        #     generation.append(self.generationQueue.get())
-        #     self.generationQueue.task_done()
-        # # calculate loss
-        # print(f'start cal. loss of {len(self.generation)} coils.')
-        # for life in generation:
-        #     # lossFunction(life, self.generationQueue)
-        #     process = mp.Process(target=lossFunction, args=(life, self.generationQueue,))
-        #     process.start()
-        #     processTank.append(process)
-        # # wait until finish
-        # for process in processTank:
-        #     process.join()
-
-
-    def __breedNextGeneration(self):
-
-        survived = sorted(self.generation, key=lambda coil: coil.loss)[:self.survivalPerGeneration]
-        self.generation = []
-        for life in survived:
-            descendants = life.makeDescendants(amount=self.descendantsPerLife)
-            self.generation.append(life)
-            self.generation.extend(descendants)
-        # print error
-        print(f'{len(self.generation)} individuals put.')
-        print('loss: {:.4g}'.format(survived[0].loss), end=' ')
-
-        # # get survived
-        # generation = []
-        # while not self.generationQueue.empty():
-        #     generation.append(self.generationQueue.get())
-        #     self.generationQueue.task_done()
-        # # self.generationQueue.join()
-        # print([ coil.loss for coil in generation ])
-        # survived = sorted(generation, key=lambda coil: coil.loss)[:self.survivalPerGeneration]
-        # # boom the next generation
-        # generation = []
-        # for life in survived:
-        #     descendants = life.makeDescendants(amount=self.descendantsPerLife)
-        #     generation.append(life)
-        #     generation.extend(descendants)
-        # # write to the next generationQueue
-        # for life in generation:
-        #     self.generationQueue.put(life)
-        # # print error
-        # print(f'{len(generation)} individuals put.')
-        # print('loss: {:.4g}'.format(survived[0].loss), end=' ')
+            print('minLoss: {:.4g} (time cost: {:.3g}[min])'.format(survived[0].loss, (_end-_start).total_seconds()/60))
+            # plot
+            minLoss.append(survived[0].loss)
+            loopCount.append(count+1)
+            fig = pl.figure()
+            pl.title('Training Result', fontsize=24)
+            pl.xlabel('loop count', fontsize=22)
+            pl.ylabel('min loss', fontsize=22)
+            pl.yscale('log')
+            pl.plot(loopCount, minLoss)
+            pl.tick_params(labelsize=16)
+            fig.savefig('trainingResult.png')
+            pl.close(fig)
 
 
 # Main
