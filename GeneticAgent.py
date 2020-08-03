@@ -8,6 +8,7 @@ from numpy import cos, sin, pi, abs, sqrt
 import multiprocessing as mp
 import math as ma
 import datetime as dt
+import os
 
 from calculateML import MutalInductance
 
@@ -77,15 +78,15 @@ class Coil():
             self.distribution = nu.zeros((self.rowAmount, self.columnAmount), dtype=nu.int)
             self.distribution[-1, :] = 1
             #
-            self.distributionInRealCoordinates = self.__calculateDistributionInRealCoordinates()
+            self.distributionInRealCoordinates = self.calculateDistributionInRealCoordinates()
         else:
             self.distribution = baseCoil.distribution.copy()
-            self.distributionInRealCoordinates = self.__calculateDistributionInRealCoordinates()
+            self.distributionInRealCoordinates = self.calculateDistributionInRealCoordinates()
         #
         self.loss = None
 
 
-    def __calculateDistributionInRealCoordinates(self):
+    def calculateDistributionInRealCoordinates(self):
         rs = nu.linspace(-self.Z0, self.Z0, self.columnAmount).reshape(1, -1) * self.distribution
         zs = nu.linspace(self.minRadius, self.minRadius+self.rowAmount*self.scThickness, self.rowAmount).reshape(-1, 1) * self.distribution
         indices = [ (r, z) for r, z in zip(rs[rs!=0].ravel(), zs[zs!=0].ravel()) ]
@@ -167,6 +168,10 @@ class GeneticAgent():
         self.descendantsPerLife = 8
         # init generation
         coil = Coil()
+        if os.path.exists('bestCoil.npy'):
+            distribution = nu.load('bestCoil.npy')
+            coil.distribution = distribution
+            coil.distributionInRealCoordinates = coil.calculateDistributionInRealCoordinates()
         for _ in range(self.survivalPerGeneration):
             self.generation.append(coil)
 
