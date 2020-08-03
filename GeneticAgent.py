@@ -9,6 +9,7 @@ import multiprocessing as mp
 import math as ma
 import datetime as dt
 import os
+import pickle
 
 from calculateML import MutalInductance
 
@@ -84,6 +85,34 @@ class Coil():
             self.distributionInRealCoordinates = self.calculateDistributionInRealCoordinates()
         #
         self.loss = None
+
+
+    # for pickle
+    def __getstate__(self):
+        return {
+            'length': self.length,
+            'Z0': self.Z0,
+            'minRadius': self.minRadius,
+            'scWidth': self.scWidth,
+            'scThickness': self.scThickness,
+            'columnAmount': self.columnAmount,
+            'rowAmount': self.rowAmount,
+            'distribution': self.distribution.tolist(),
+            'distributionInRealCoordinates': self.distributionInRealCoordinates.tolist(),
+            'loss': self.loss
+        }
+
+    def __setstate__(self, state):
+        self.length = state['length']
+        self.Z0 = state['Z0']
+        self.minRadius = state['minRadius']
+        self.scWidth = state['scWidth']
+        self.scThickness = state['scThickness']
+        self.columnAmount = state['columnAmount']
+        self.rowAmount = state['rowAmount']
+        self.distribution = nu.array(state['distribution'])
+        self.distributionInRealCoordinates = nu.array(state['distributionInRealCoordinates'])
+        self.loss = state['loss']
 
 
     def calculateDistributionInRealCoordinates(self):
@@ -167,13 +196,19 @@ class GeneticAgent():
         self.survivalPerGeneration = 20
         self.descendantsPerLife = 8
         # init generation
-        coil = Coil()
-        if os.path.exists('bestCoil.npy'):
-            distribution = nu.load('bestCoil.npy')
-            coil.distribution = distribution
-            coil.distributionInRealCoordinates = coil.calculateDistributionInRealCoordinates()
-        for _ in range(self.survivalPerGeneration):
-            self.generation.append(coil)
+        if os.path.exists('lastGeneration.pickle'):
+            self.generation = pickle.load('lastGeneration.pickle')
+        else:
+            coil = Coil()
+            for _ in range(self.survivalPerGeneration):
+                self.generation.append(coil)
+        # coil = Coil()
+        # if os.path.exists('bestCoil.npy'):
+        #     distribution = nu.load('bestCoil.npy')
+        #     coil.distribution = distribution
+        #     coil.distributionInRealCoordinates = coil.calculateDistributionInRealCoordinates()
+        # for _ in range(self.survivalPerGeneration):
+        #     self.generation.append(coil)
 
 
     # http://ja.pymotw.com/2/multiprocessing/communication.html
@@ -186,7 +221,7 @@ class GeneticAgent():
             _start = dt.datetime.now()
             # calculate loss function for this generation and store in self.generationQueue
             # https://github.com/psf/black/issues/564
-            with mp.Pool(processes=min(mp.cpu_count()-1, 60)) as pool:
+            with mp.Pool(processes=min(mp.cpu_count()-1, 55)) as pool:
                 self.generation = pool.map(lossFunction, self.generation)
             print('loss function calculated.')
             # boom next generation
@@ -207,13 +242,15 @@ class GeneticAgent():
             pl.xlabel('loop count', fontsize=18)
             pl.ylabel('min loss', fontsize=18)
             pl.yscale('log')
-            pl.plot(minLoss)
+            pl.plot(minLosses)
             pl.tick_params(labelsize=12)
             fig.savefig('trainingResult.png')
             pl.close(fig)
-            # save coil, https://deepage.net/features/numpy-loadsave.html
-            nu.save('bestCoil.npy', survived[0].distribution)
-            nu.save('minLosses.npy', nu.array(minLoss))
+            # save coil
+            pickle.dump(survived, 'lastGeneration.pickle')
+            # https://deepage.net/features/numpy-loadsave.html
+            # nu.save('lastGeneration.npy', survived[0].distribution)
+            nu.save('minLosses.npy', nu.array(minLosses))
 
 
 # Main
