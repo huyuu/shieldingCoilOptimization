@@ -62,7 +62,6 @@ def lossFunction(coil, points=20):
     # add to generationQueue
     coil.loss = loss
     return coil
-    # queue.put(coil)
 
 
 class Coil():
@@ -203,13 +202,6 @@ class GeneticAgent():
             coil = Coil()
             for _ in range(self.survivalPerGeneration):
                 self.generation.append(coil)
-        # coil = Coil()
-        # if os.path.exists('bestCoil.npy'):
-        #     distribution = nu.load('bestCoil.npy')
-        #     coil.distribution = distribution
-        #     coil.distributionInRealCoordinates = coil.calculateDistributionInRealCoordinates()
-        # for _ in range(self.survivalPerGeneration):
-        #     self.generation.append(coil)
 
 
     # http://ja.pymotw.com/2/multiprocessing/communication.html
@@ -251,8 +243,14 @@ class GeneticAgent():
             with open('lastGeneration.pickle', 'wb') as file:
                 pickle.dump(survived, file)
             # https://deepage.net/features/numpy-loadsave.html
-            # nu.save('lastGeneration.npy', survived[0].distribution)
             nu.save('minLosses.npy', nu.array(minLosses))
+
+
+    def showBestCoils(self):
+        for coil in self.generation:
+            print(coil.distribution)
+            print(coil.loss)
+            print('\n')
 
 
 # Main
@@ -268,4 +266,5 @@ R2 = 1e-7
 if __name__ == '__main__':
     mp.freeze_support()
     agent = GeneticAgent()
-    agent.run()
+    # agent.run()
+    agent.showBestCoils()
