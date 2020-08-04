@@ -72,7 +72,7 @@ class Coil():
         self.scWidth = 4e-3
         self.scThickness = 100e-6
         self.columnAmount = int(self.length/self.scWidth)
-        self.rowAmount = 5  # max turns
+        self.rowAmount = 4  # max turns
         #
         if baseCoil == None:
             self.distribution = nu.zeros((self.rowAmount, self.columnAmount), dtype=nu.int)
@@ -266,5 +266,4 @@ R2 = 1e-7
 if __name__ == '__main__':
     mp.freeze_support()
     agent = GeneticAgent()
-    # agent.run()
-    agent.showBestCoils()
+    agent.run()
